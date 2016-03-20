@@ -1,7 +1,4 @@
 # TrabalhoSD
-<<<<<<< HEAD
-# TrabalhoSD
-=======
 
 referências:
 
@@ -12,4 +9,3 @@ http://users.cs.cf.ac.uk/O.F.Rana/os/lectureos7/node9.html
 http://jcsites.juniata.edu/faculty/rhodes/os/ch5d.htm
 http://condor.cc.ku.edu/~grobe/docs/intro-MPI-C.shtml
 http://www.uniriotec.br/~adriana/MPI/ProgramasMPI.htm
->>>>>>> 55c40a33c136482213b6303a2316cc354833aeb4
