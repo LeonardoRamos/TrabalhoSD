@@ -37,7 +37,7 @@ main (int argc, char **argv) {
 	MPI_Comm_rank(MPI_COMM_WORLD, &processId);
 	MPI_Comm_size (MPI_COMM_WORLD, &totalProcesses);
 
-	numberOfWriters = ((totalProcesses - 1) / 2);
+	numberOfWriters = ((totalProcesses - 1) / 4);
 	numberOfReaders = totalProcesses - numberOfWriters;
 
 	if (processId == 0) { 
@@ -45,22 +45,23 @@ main (int argc, char **argv) {
 		// que atende as requisições dos leitores e escritores
 
 		while (1) {
-			char message[50];
-			MPI_Recv(&message, 20, MPI_CHAR, MPI_ANY_SOURCE, data_transfer_tag, MPI_COMM_WORLD, &status);
+			char message[4];
+			MPI_Recv(&message, 4, MPI_CHAR, MPI_ANY_SOURCE, data_transfer_tag, MPI_COMM_WORLD, &status);
+			int sourceProcess = (int) message[2] - 48;
 
-			if (strcmp(message, "RequestRead") != 0) { // mensagem de leitor requisitando leitura
+			if (message[0] == 'R' && message[1] == 'R') { // mensagem de leitor requisitando leitura (RR = RequestRead)
 				if (isWriting == 0) { // envia OK para o processo leitor, área crítica está apta para uso
-					MPI_Send(&status.MPI_SOURCE, 1, MPI_INT, status.MPI_SOURCE, data_transfer_tag, MPI_COMM_WORLD);
+					MPI_Send(&sourceProcess, 1, MPI_INT, sourceProcess, data_transfer_tag, MPI_COMM_WORLD);
 					readerCount++;
 				}
 				else { // adciona na fila, área crítica está ocupada com escrita
 					totalReadersInQueue++;
-					readerQueue[readerIndex] = status.MPI_SOURCE;
+					readerQueue[readerIndex] = sourceProcess;
 					readerIndex++;
 				}
 
 			}
-			else if (strcmp(message, "EndRead") != 0) { // mensagem de leitor sinalizando que não está mais lendo
+			else if (message[0] == 'E' && message[1] == 'R') { // mensagem de leitor sinalizando que não está mais lendo (ER = EndRead)
 				readerCount--;
 
 				// não há mais processos efetuando a leitura, primeiro escritor da fila pode escrever, é enviado OK
@@ -78,18 +79,18 @@ main (int argc, char **argv) {
 					}
 				}
 			}
-			else if (strcmp(message, "RequestWrite") != 0) { // mensagem de escritor requisitando escrita
+			else if (message[0] == 'R' && message[1] == 'W') { // mensagem de escritor requisitando escrita (RW = RequestWriter)
 				if (readerCount == 0 && isWriting == 0) {
-					MPI_Send(&status.MPI_SOURCE, 1, MPI_INT, status.MPI_SOURCE, data_transfer_tag, MPI_COMM_WORLD);
+					MPI_Send(&sourceProcess, 1, MPI_INT, sourceProcess, data_transfer_tag, MPI_COMM_WORLD);
 					isWriting = 0;
 				}
 				else {
 					totalWritersInQueue++;
-					writerQueue[writerIndex] = status.MPI_SOURCE;
+					writerQueue[writerIndex] = sourceProcess;
 					writerIndex++;
 				}
 			}
-			else { // mensagem de escritor sinalizando que não está mais escrevendo
+			else if (message[0] == 'E' && message[1] == 'R') {  // mensagem de escritor sinalizando que não está mais escrevendo (EW = EndWriter)
 				isWriting = 0;
 
 				if (totalReadersInQueue == 0 && totalWritersInQueue > 0) { // terminou de escrever mas ainda tem processo querendo escrever
@@ -127,11 +128,14 @@ main (int argc, char **argv) {
 	}
 	else if (processId <= numberOfWriters) { // processos escritores
 		int requestMessage;
+		char messageDocument[4];
 
    		while (1) {
+   			sprintf(messageDocument, "RW%d", processId);
+
 			sleep(1); 
 			printf("\nEscritor %d quer escrever", processId);  
-			MPI_Send("RequestWrite", 20, MPI_CHAR, 0, data_transfer_tag, MPI_COMM_WORLD);
+			MPI_Send(messageDocument, 4, MPI_CHAR, 0, data_transfer_tag, MPI_COMM_WORLD);
 			MPI_Recv(&requestMessage, 1, MPI_INT, MPI_ANY_SOURCE, data_transfer_tag, MPI_COMM_WORLD, &status);
 
 			// área crítica
@@ -140,17 +144,21 @@ main (int argc, char **argv) {
 			printf("\nEscritor %d terminou de escrever", processId); 
 			// área crítica completada 
 
-			MPI_Send("EndWrite", 20, MPI_CHAR, 0, data_transfer_tag, MPI_COMM_WORLD);
+			sprintf(messageDocument, "EW%d", processId);
+			MPI_Send(messageDocument, 4, MPI_CHAR, 0, data_transfer_tag, MPI_COMM_WORLD);
    		}
 
 	}
 	else { // processos leitores
 		int requestMessage;
-	    
+	    char messageDocument[4];
+
 	    while (1) {
+   			sprintf(messageDocument, "RR%d", processId);
+
 			sleep(1); 
 			printf("\nLeitor %d quer ler", processId);  
-			MPI_Send("RequestRead", 20, MPI_CHAR, 0, data_transfer_tag, MPI_COMM_WORLD);
+			MPI_Send(messageDocument, 4, MPI_CHAR, 0, data_transfer_tag, MPI_COMM_WORLD);
 			MPI_Recv(&requestMessage, 1, MPI_INT, MPI_ANY_SOURCE, data_transfer_tag, MPI_COMM_WORLD, &status);
 			
 			// área crítica
@@ -159,7 +167,8 @@ main (int argc, char **argv) {
 			printf("\nLeitor %d terminou de ler", processId);  
 			// área crítica completada 
 			
-			MPI_Send("EndRead", 20, MPI_CHAR, 0, data_transfer_tag, MPI_COMM_WORLD);
+			sprintf(messageDocument, "ER%d", processId);
+			MPI_Send(messageDocument, 4, MPI_CHAR, 0, data_transfer_tag, MPI_COMM_WORLD);
 		}
 
 	}
