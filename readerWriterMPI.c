@@ -47,7 +47,7 @@ main (int argc, char **argv) {
 		while (1) {
 			char message[4];
 			MPI_Recv(&message, 4, MPI_CHAR, MPI_ANY_SOURCE, data_transfer_tag, MPI_COMM_WORLD, &status);
-			int sourceProcess = (int) message[2] - 48;
+			int sourceProcess = (int) message[2] - 48; // pega o endereço do remetente da mensagem
 
 			if (message[0] == 'R' && message[1] == 'R') { // mensagem de leitor requisitando leitura (RR = RequestRead)
 				if (isWriting == 0) { // envia OK para o processo leitor, área crítica está apta para uso
