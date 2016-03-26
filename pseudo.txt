@@ -1,0 +1,12 @@
+processador 0 vai ser controllador de tudo
+
+ele vai controlar total de readers e writers
+
+readers e writers vao mandar requisicao para o controller perguntando se podem executar
+
+reader vai mandar pro controller numero de reader executando
+
+se numero de readers == 0 manda OK para writer
+
+quando writer acaba de escrever ele avisa pro controller que nao ta mais escrevendo e o controller vai verificar se algum reader esta tentando escrever
+se estiver, manda OK, permitindo, caso contrario, deixa caminho livre para outro escritor que queira escrever (contador de writers igual de readers)

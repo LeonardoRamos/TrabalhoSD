@@ -7,99 +7,165 @@
  *      Author: Leonardo Ramos, Carlos de Oliveira, Bruno Moraes
  *  
  *  Compilar:
+ *		mpicc readerWriterMPI.c readerWriterMPI
  *      gcc -pthread readerWriterMPI.c -o readerWriterMPI
  */
 
-#include <stdio.h>
-#include <pthread.h>
-#include <semaphore.h>
+#include <stddef.h>
+#include <string.h>
+#include <stdio.h> 
+#include <stdlib.h> 
+#include <string.h> 
+#include <mpi.h>
   
-void * reader(void * ) ;  
-void *writer (void * ) ;  
-sem_t wsem,mutex ;  
-int readcount = 0 ;  
+#define MAXPROC 1000
 
-main() { 
-	int i = 0, numberOfReaderThread = 0, numberOfWriterThread;
+main (int argc, char **argv) {
+	int readerIndex = 0, writerIndex = 0, readerStartIndex = 0, writerStartIndex = 0,
+		totalWritersInQueue = 0, totalReadersInQueue = 0, numberOfReaders, numberOfWriters, 
+	    totalProcesses, processId, ierr, readerCount = 0, isWriting = 0, data_transfer_tag = 1;
+
+	int writerQueue[MAXPROC];
+	int readerQueue[MAXPROC];
+    
+    MPI_Status status;
 	
-	system("clear");  
-	
-	sem_init(&wsem, 0, 1);  
-	sem_init(&mutex, 0, 1);  
+	printf("\nEntre com o número de leitores:\n");
+	scanf("%d", &numberOfReaders);
 
-	pthread_t readers_thr[500], writer_thr[500];
-	
-	printf("\nEntre com o número de leitores thread(MAX 500):\n");
-	scanf("%d", &numberOfReaderThread);
+	printf("\nEntre com o número de escritores:\n");
+	scanf("%d", &numberOfWriters);
 
-	printf("\nEntre com o número de escritores thread(MAX 500):\n");
-	scanf("%d", &numberOfWriterThread);
+	totalProcesses = numberOfReaders + numberOfWriters;
 
-	for (i = 0; i < numberOfReaderThread; i++) {
-		pthread_create(&readers_thr[i], NULL, reader, (void * ) i);
+	ierr = MPI_Init(&totalProcesses, &argv);
+	ierr = MPI_Comm_rank(MPI_COMM_WORLD, &processId);
+
+	if (processId == 0) { 
+	// processo controlador, o processo pricipal que funciona como um servidor 
+	// que atende as requisições dos leitores e escritores
+
+		while (1) {
+			char message[50];
+			ierr = MPI_Recv(&message, 20, MPI_CHAR, MPI_ANY_SOURCE, data_transfer_tag, MPI_COMM_WORLD, &status);
+
+			if (strcmp(message, "RequestRead") != 0) { // mensagem de leitor requisitando leitura
+				
+				if (isWriting == 0) { // envia OK para o processo leitor, área crítica está apta para uso
+					ierr = MPI_Send(status.MPI_SOURCE, 1, MPI_INT, status.MPI_SOURCE, data_transfer_tag, MPI_COMM_WORLD);
+					readerCount++;
+				}
+				else { // adciona na fila, área crítica está ocupada com escrita
+					totalReadersInQueue++;
+					readerQueue[readerIndex] = status.MPI_SOURCE;
+					readerIndex++;
+				}
+
+			}
+			else if (strcmp(message, "EndRead") != 0) { // mensagem de leitor sinalizando que não está mais lendo
+				readerCount--;
+
+				// não há mais processos efetuando a leitura, primeiro escritor da fila pode escrever, é enviado OK
+				if (readerCount == 0 && totalWritersInQueue > 0) {
+					ierr = MPI_Send(writerQueue[writerStartIndex], 1, MPI_INT, writerQueue[writerStartIndex], data_transfer_tag, MPI_COMM_WORLD);
+					isWriting = 1;
+					// remove writer da fila
+					writerStartIndex++;
+					writerQueue[writerStartIndex] = 0;
+					totalWritersInQueue--;
+
+					if (totalWritersInQueue == 0) {
+						writerStartIndex = 0;
+						writerIndex = 0;
+					}
+				}
+			}
+			else if (strcmp(message, "RequestWrite") != 0) { // mensagem de escritor requisitando escrita
+				if (readerCount == 0 && isWriting == 0) {
+					ierr = MPI_Send(status.MPI_SOURCE, 1, MPI_INT, status.MPI_SOURCE, data_transfer_tag, MPI_COMM_WORLD);
+					isWriting = 0;
+				}
+				else {
+					totalWritersInQueue++;
+					writerQueue[writerIndex] = status.MPI_SOURCE;
+					writerIndex++;
+				}
+			}
+			else { // mensagem de escritor sinalizando que não está mais escrevendo
+				isWriting = 0;
+
+				if (totalReadersInQueue == 0 && totalWritersInQueue > 0) { // terminou de escrever mas ainda tem processo querendo escrever
+					ierr = MPI_Send(writerQueue[writerStartIndex], 1, MPI_INT, writerQueue[writerStartIndex], data_transfer_tag, MPI_COMM_WORLD);
+					isWriting = 1;
+					// remove writer da fila
+					writerStartIndex++;
+					writerQueue[writerStartIndex] = 0;
+					totalWritersInQueue--;
+
+					if (totalWritersInQueue == 0) {
+						writerStartIndex = 0;
+						writerIndex = 0;
+					}
+				}
+				else { // não há mais processos querendo escrever, todos os processos de leitura serão atendidos
+					while (totalReadersInQueue > 0) {
+						ierr = MPI_Send(readerQueue[readerStartIndex], 1, MPI_INT, readerQueue[readerStartIndex], data_transfer_tag, MPI_COMM_WORLD);
+						readerCount++;
+
+						// remove reader da fila
+						readerStartIndex++;
+						readerQueue[readerStartIndex] = 0;
+						totalReadersInQueue--;
+
+						if (totalReadersInQueue == 0) {
+							readerStartIndex = 0;
+							readerIndex = 0;
+						}
+					}
+				}
+			}
+		    
+		}
+	}
+	else if (processId < numberOfReaders) { // processos leitores
+		int rmsg;
+	    
+	    while (1) {
+			sleep(1); 
+			printf("\nEscritor %d quer ler", processId);  
+			ierr = MPI_Send("RequestRead", 20, MPI_CHAR, 0, data_transfer_tag, MPI_COMM_WORLD);
+			ierr = MPI_Recv(&rmsg, 1, MPI_INT, MPI_ANY_SOURCE, data_transfer_tag, MPI_COMM_WORLD, &status);
+			
+			// área crítica
+			printf("\nLeitor %d está lendo", processId);  
+			sleep(1) ;  
+			printf("\nLeitor %d terminou de ler", processId);  
+			// área crítica completada 
+			
+			ierr = MPI_Send("EndRead", 20, MPI_CHAR, 0, data_transfer_tag, MPI_COMM_WORLD);
+		}
+
+	}
+	else { // processos escritores
+		int rmsg;
+
+   		while (1) {
+			sleep(1); 
+			printf("\nEscritor %d quer escrever", processId);  
+			ierr = MPI_Send("RequestWrite", 20, MPI_CHAR, 0, data_transfer_tag, MPI_COMM_WORLD);
+			ierr = MPI_Recv(&rmsg, 1, MPI_INT, MPI_ANY_SOURCE, data_transfer_tag, MPI_COMM_WORLD, &status);
+
+			// área crítica
+			printf("\nEscritor %d está escrevendo", processId);  
+			sleep(1);  
+			printf("\nEscritor %d terminou de escrever", processId); 
+			// área crítica completada 
+
+			ierr = MPI_Send("EndWrite", 20, MPI_CHAR, 0, data_transfer_tag, MPI_COMM_WORLD);
+   		}
 	}
 
-	for (i = 0; i < numberOfWriterThread;i++) {
-		pthread_create(&writer_thr[i], NULL, writer, (void *) i);
-	}
-
-	for (i = 0; i < numberOfWriterThread; i++) {
-		pthread_join(writer_thr[i], NULL);
-	}
-
-	for (i = 0; i < numberOfReaderThread; i++) {
-		pthread_join(readers_thr[i], NULL);
-	}
-
-	sem_destroy(&wsem);
-	sem_destroy(&mutex);  
+	MPI_Finalize();
 	
 	printf("\nFim da execução");  
-}
-
-void * reader(void * arg) {
-	while (1) {  
-		int c = (int) arg;  
-		printf("\nLeitor %d quer ler", c);  
-		sleep(1);  
-		
-		sem_wait(&mutex);  
-		readcount++;  
-		
-		if (readcount == 1) {  
-		   sem_wait(&wsem);
-		}  
-		sem_post(&mutex);  
-
-		/*Critcal Section */  
-		printf("\nLeitor %d está lendo", c);  
-		sleep(1) ;  
-		printf("\nLeitor %d terminou de ler", c);  
-		/* critical section completd */  
-		
-		sem_wait(&mutex);  
-		readcount-- ;  
-		
-		if (readcount == 0) { 
-		    sem_post(&wsem);
-		}  
-
-		sem_post(&mutex);
-	}  
-}  
-
-void * writer(void * arg) {  
-	while (1) {
-		int c = (int) arg ;  
-		printf("\nEscritor %d quer escrever", c);  
-		
-		sleep(1);  
-		sem_wait(&wsem);  
-		
-		printf("\nEscritor %d está escrevendo",c) ;  
-		sleep(1);  
-		printf("\nEscritor %d terminou de escrever",c);  
-		
-		sem_post(&wsem);
-	}  
 }
