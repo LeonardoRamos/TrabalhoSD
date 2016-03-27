@@ -10,7 +10,7 @@
  *		mpicc readerWriterMPI.c -o readerWriterMPI
  *
  *  Executar:
- *		mpirun -np NUMERO_DE_PROCESSOS ./readerWriterMPI	
+ *		mpirun -np <NUMERO_DE_PROCESSOS> ./readerWriterMPI	
  *  
  */
 
