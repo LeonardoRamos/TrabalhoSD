@@ -98,7 +98,7 @@ main (int argc, char **argv) {
 			else if (message[0] == 'E' && message[1] == 'W') {  // mensagem de escritor sinalizando que não está mais escrevendo (EW = EndWriter)
 				isWriting = 0;
 
-				if (totalReadersInQueue == 0 && totalWritersInQueue > 0) { // terminou de escrever mas ainda tem processo querendo ler
+				if (totalReadersInQueue == 0 && totalWritersInQueue > 0) { // terminou de escrever mas ainda tem processo querendo escrever
 					printf("\nTérmino de escrita, processo de id %d no início da fila de escritores irá escrever.", writerQueue[writerStartIndex]);  
 					MPI_Send(&writerQueue[writerStartIndex], 1, MPI_INT, writerQueue[writerStartIndex], data_transfer_tag, MPI_COMM_WORLD);
 					isWriting = 1;
