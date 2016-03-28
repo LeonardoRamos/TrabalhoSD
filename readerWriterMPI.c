@@ -1,10 +1,10 @@
 /*
- * readerWriterMPI.c
+ *  readerWriterMPI.c
  *
- * Trabalho de implementação da disciplina Sistemas Distribuídos
+ *  Trabalho de implementação da disciplina Sistemas Distribuídos
  *
- *  Created on: 2016
- *      Author: Leonardo Ramos, Carlos de Oliveira, Bruno Moraes
+ *  Criado em: 2016
+ *  	Autores: Leonardo Ramos, Carlos de Oliveira, Bruno Moraes
  *  
  *  Compilar:
  *		mpicc readerWriterMPI.c -o readerWriterMPI
