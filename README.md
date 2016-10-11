@@ -1,6 +1,6 @@
 # TrabalhoSD
 
-Referência psuedo código:
+Referência pseudo código:
 
 http://users.cs.cf.ac.uk/O.F.Rana/os/lectureos7/node9.html
 
